@@ -1,4 +1,4 @@
-#include "cib_swd_log.h"
+#include "logging/cib_swd_log.hpp"
 
 #include <ch32fun.h>
 

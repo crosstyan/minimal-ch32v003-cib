@@ -1,11 +1,11 @@
-#include "app.h"
+#include "app/app.hpp"
 
 #include <flow/flow.hpp>
 #include <nexus/config.hpp>
 #include <nexus/nexus.hpp>
 
-#include "instant.h"
-#include "system_tick.h"
+#include "platform/instant.hpp"
+#include "platform/system_tick.h"
 
 #include <ch32fun.h>
 
@@ -14,7 +14,7 @@
 #endif
 
 #if CH32V003_CIB_BINARY_LOG
-#include "cib_log_config.h"
+#include "logging/cib_log_config.hpp"
 #endif
 
 namespace {

@@ -42,12 +42,12 @@ cmake -S . -B build-log -G Ninja \
 - `firmware_log_catalog` links the CH32V003 compile flags too, because the
   generated `strings.cpp` object must use the same `rv32ec/ilp32e` ABI as the
   firmware
-- `cib_log_config.h` undefines ch32fun's `INFO` peripheral macro before CIB log
-  macros expand, otherwise `logging::level::INFO` is preprocessed into the
-  hardware register macro
-- `cib_log_config.h` also injects a CIB concurrency policy that saves `mstatus`,
-  disables interrupts while the binary destination writes a packet, then
-  restores `mstatus`
+- `src/logging/cib_log_config.hpp` undefines ch32fun's `INFO` peripheral macro
+  before CIB log macros expand, otherwise `logging::level::INFO` is
+  preprocessed into the hardware register macro
+- `src/logging/cib_log_config.hpp` also injects a CIB concurrency policy that
+  saves `mstatus`, disables interrupts while the binary destination writes a
+  packet, then restores `mstatus`
 
 ## Target sink
 

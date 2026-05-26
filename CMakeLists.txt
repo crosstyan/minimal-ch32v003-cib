@@ -121,7 +121,11 @@ target_include_directories(
         "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
 set(FIRMWARE_APP_TARGET firmware_app)
-add_library(${FIRMWARE_APP_TARGET} STATIC src/app.cpp src/system_tick.cpp)
+add_library(
+    ${FIRMWARE_APP_TARGET}
+    STATIC
+        src/app/app.cpp
+        src/platform/system_tick.cpp)
 target_link_libraries(
     ${FIRMWARE_APP_TARGET}
     PUBLIC
@@ -138,7 +142,7 @@ target_compile_definitions(
         CH32V003_CIB_BINARY_LOG=$<BOOL:${CH32V003_CIB_BINARY_LOG}>)
 
 if(CH32V003_CIB_BINARY_LOG)
-    target_sources(${FIRMWARE_APP_TARGET} PRIVATE src/cib_swd_log.cpp)
+    target_sources(${FIRMWARE_APP_TARGET} PRIVATE src/logging/cib_swd_log.cpp)
     target_link_libraries(${FIRMWARE_APP_TARGET} PUBLIC cib_log_binary)
 
     set(FIRMWARE_LOG_DIR "${CMAKE_CURRENT_BINARY_DIR}/log")

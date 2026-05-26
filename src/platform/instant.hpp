@@ -1,6 +1,6 @@
 #pragma once
 
-#include "system_tick.h"
+#include "platform/system_tick.h"
 
 #include <stdint.h>
 
