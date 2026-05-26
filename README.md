@@ -90,6 +90,49 @@ The build emits:
 - `build/ch32v003_cib_blink.map`
 - `build/ch32v003_cib_blink.lst`
 
+## CIB Binary SWD Logging
+
+CIB binary logging is opt-in:
+
+```sh
+cmake -S . -B build-log -G Ninja \
+  -DCH32V003_CIB_BINARY_LOG=ON
+cmake --build build-log
+```
+
+That links `cib_log_binary`, emits the string catalog under
+`build-log/log/`, and sends binary packets through the CH32V003 debug mailbox.
+The sink is synchronous and uses the same 7-byte DMDATA frame shape as
+ch32fun's SWD `DEBUGPRINTF`; it is not a FIFO.
+
+Because this sink is synchronous, the logging firmware can block when no host is
+draining the SWD mailbox. If a logging-enabled image appears stuck, start the
+receiver; the `-b -R` command below reboots the chip and drains the log stream.
+
+If you want CMake to use a specific Python for CIB code generation, pass it
+without hard-coding a path in the project:
+
+```sh
+cmake -S . -B build-log -G Ninja \
+  -DCH32V003_CIB_BINARY_LOG=ON \
+  -DCIB_PYTHON_EXECUTABLE="$(command -v python3.14)"
+```
+
+The vendored `minichlink` has a local raw terminal mode for this stream:
+
+```sh
+cmake --build build-log --target minichlink_tool
+vendor/ch32fun/minichlink/minichlink -b -R \
+  | tools/cib-log-decode.py --json build-log/log/strings.json --input -
+```
+
+`-R` keeps stdout as target bytes only. If the `minichlink` on `PATH` does not
+support `-R`, use the vendored executable. The firmware does not embed target
+timestamps; pass `--host-time` to `tools/cib-log-decode.py` for receiver-side
+timestamps.
+
+More detail is in [`docs/cib-binary-swd-logging.md`](docs/cib-binary-swd-logging.md).
+
 ## Footprint Rules
 
 CH32V003 has 16 KiB flash and 2 KiB SRAM. The post-build verifier fails if:

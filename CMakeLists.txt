@@ -18,6 +18,11 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build type" FORCE)
 endif()
 
+option(CH32V003_CIB_BINARY_LOG "Send CIB binary log packets over the SWD debug mailbox" OFF)
+set(CIB_PYTHON_EXECUTABLE
+    ""
+    CACHE FILEPATH "Python 3.10+ interpreter used by CIB code-generation tools")
+
 foreach(_lang C CXX ASM)
     set(CMAKE_${_lang}_FLAGS_RELWITHDEBINFO
         "-Os -g3 -DNDEBUG"
@@ -27,6 +32,15 @@ endforeach()
 set(CH32FUN_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/ch32fun")
 set(CIB_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/compile-time-init-build")
 
+set(Python3_FIND_IMPLEMENTATIONS CPython)
+set(Python3_FIND_STRATEGY VERSION)
+set(Python3_FIND_UNVERSIONED_NAMES LAST)
+if(CIB_PYTHON_EXECUTABLE)
+    set(Python3_EXECUTABLE
+        "${CIB_PYTHON_EXECUTABLE}"
+        CACHE FILEPATH "Python interpreter used by find_package(Python3)" FORCE)
+endif()
+
 if(NOT EXISTS "${CH32FUN_SOURCE_DIR}/ch32fun/ch32fun.c")
     message(FATAL_ERROR
         "ch32fun submodule is missing. Run: git submodule update --init --recursive")
@@ -34,6 +48,10 @@ endif()
 if(NOT EXISTS "${CIB_SOURCE_DIR}/CMakeLists.txt")
     message(FATAL_ERROR
         "compile-time-init-build submodule is missing. Run: git submodule update --init --recursive")
+endif()
+
+if(CH32V003_CIB_BINARY_LOG)
+    find_package(Python3 3.10 COMPONENTS Interpreter REQUIRED)
 endif()
 
 add_subdirectory("${CIB_SOURCE_DIR}" EXCLUDE_FROM_ALL)
@@ -102,8 +120,51 @@ target_include_directories(
         "${CH32FUN_SOURCE_DIR}/extralibs"
         "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
+set(FIRMWARE_APP_TARGET firmware_app)
+add_library(${FIRMWARE_APP_TARGET} STATIC src/app.cpp src/system_tick.cpp)
+target_link_libraries(
+    ${FIRMWARE_APP_TARGET}
+    PUBLIC
+        ch32fun
+        cib_flow
+        cib_nexus
+        ch32v003_flags
+        gcc)
+target_include_directories(${FIRMWARE_APP_TARGET} PUBLIC src)
+target_compile_definitions(
+    ${FIRMWARE_APP_TARGET}
+    PRIVATE
+        SIMULATE_FREESTANDING=1
+        CH32V003_CIB_BINARY_LOG=$<BOOL:${CH32V003_CIB_BINARY_LOG}>)
+
+if(CH32V003_CIB_BINARY_LOG)
+    target_sources(${FIRMWARE_APP_TARGET} PRIVATE src/cib_swd_log.cpp)
+    target_link_libraries(${FIRMWARE_APP_TARGET} PUBLIC cib_log_binary)
+
+    set(FIRMWARE_LOG_DIR "${CMAKE_CURRENT_BINARY_DIR}/log")
+    set(FIRMWARE_LOG_STRINGS_CPP "${FIRMWARE_LOG_DIR}/strings.cpp")
+    set(FIRMWARE_LOG_STRINGS_JSON "${FIRMWARE_LOG_DIR}/strings.json")
+    set(FIRMWARE_LOG_STRINGS_XML "${FIRMWARE_LOG_DIR}/strings.xml")
+    file(MAKE_DIRECTORY "${FIRMWARE_LOG_DIR}")
+
+    gen_str_catalog(
+        OUTPUT_CPP "${FIRMWARE_LOG_STRINGS_CPP}"
+        OUTPUT_JSON "${FIRMWARE_LOG_STRINGS_JSON}"
+        OUTPUT_XML "${FIRMWARE_LOG_STRINGS_XML}"
+        OUTPUT_LIB firmware_log_catalog
+        INPUT_LIBS ${FIRMWARE_APP_TARGET}
+        CLIENT_NAME "${PROJECT_NAME}"
+        VERSION "0"
+        OUTPUTS_TARGET firmware_log_catalog_outputs)
+    target_link_libraries(
+        firmware_log_catalog
+        PUBLIC
+            cib_log_binary
+            ch32v003_flags)
+endif()
+
 set(FIRMWARE_TARGET firmware)
-add_executable(${FIRMWARE_TARGET} src/main.cpp src/system_tick.cpp)
+add_executable(${FIRMWARE_TARGET} src/main.cpp)
 set_target_properties(
     ${FIRMWARE_TARGET}
     PROPERTIES
@@ -114,13 +175,11 @@ add_dependencies(${FIRMWARE_TARGET} ch32fun_linker_script)
 target_link_libraries(
     ${FIRMWARE_TARGET}
     PRIVATE
-        ch32fun
-        cib_flow
-        cib_nexus
-        ch32v003_flags
-        gcc)
-target_include_directories(${FIRMWARE_TARGET} PRIVATE src)
-target_compile_definitions(${FIRMWARE_TARGET} PRIVATE SIMULATE_FREESTANDING=1)
+        ${FIRMWARE_APP_TARGET}
+        ch32v003_flags)
+if(CH32V003_CIB_BINARY_LOG)
+    target_link_libraries(${FIRMWARE_TARGET} PRIVATE firmware_log_catalog)
+endif()
 target_link_options(
     ${FIRMWARE_TARGET}
     PRIVATE
