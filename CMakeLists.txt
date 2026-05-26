@@ -189,12 +189,36 @@ if(MAKE_EXECUTABLE AND EXISTS "${MINICHLINK_SOURCE_DIR}/Makefile")
         BYPRODUCTS "${MINICHLINK_VENDOR_EXECUTABLE}"
         USES_TERMINAL
         VERBATIM)
-    set(MINICHLINK_DEFAULT "${MINICHLINK_VENDOR_EXECUTABLE}")
-elseif(MINICHLINK_PROGRAM)
+    set(MINICHLINK_VENDOR_CAN_BUILD TRUE)
+endif()
+
+if(MINICHLINK_PROGRAM)
     set(MINICHLINK_DEFAULT "${MINICHLINK_PROGRAM}")
+elseif(MINICHLINK_VENDOR_CAN_BUILD)
+    set(MINICHLINK_DEFAULT "${MINICHLINK_VENDOR_EXECUTABLE}")
 endif()
 
 set(MINICHLINK "${MINICHLINK_DEFAULT}" CACHE FILEPATH "minichlink executable")
+if(NOT DEFINED MINICHLINK_AUTO_SELECTED)
+    set(MINICHLINK_AUTO_SELECTED "" CACHE INTERNAL "Automatically selected minichlink executable")
+endif()
+
+set(MINICHLINK_SHOULD_UPDATE FALSE)
+if(MINICHLINK_DEFAULT)
+    if(NOT MINICHLINK)
+        set(MINICHLINK_SHOULD_UPDATE TRUE)
+    elseif(MINICHLINK STREQUAL MINICHLINK_AUTO_SELECTED)
+        set(MINICHLINK_SHOULD_UPDATE TRUE)
+    elseif(MINICHLINK STREQUAL MINICHLINK_VENDOR_EXECUTABLE AND MINICHLINK_PROGRAM)
+        set(MINICHLINK_SHOULD_UPDATE TRUE)
+    endif()
+endif()
+
+if(MINICHLINK_SHOULD_UPDATE)
+    set(MINICHLINK "${MINICHLINK_DEFAULT}" CACHE FILEPATH "minichlink executable" FORCE)
+endif()
+set(MINICHLINK_AUTO_SELECTED "${MINICHLINK_DEFAULT}" CACHE INTERNAL "Automatically selected minichlink executable" FORCE)
+
 set(MINICHLINK_WRITE_SECTION "flash" CACHE STRING "minichlink memory section")
 
 if(MINICHLINK)
@@ -210,6 +234,25 @@ if(MINICHLINK)
     endif()
 else()
     message(WARNING "minichlink was not found and cannot be built; flash_minichlink will not be available")
+endif()
+
+find_program(WLINK NAMES wlink HINTS "$ENV{HOME}/.cargo/bin")
+set(WLINK_CHIP "CH32V003" CACHE STRING "wlink chip name")
+set(WLINK_FLASH_ARGS "" CACHE STRING "Extra wlink flash arguments")
+separate_arguments(WLINK_FLASH_ARGS_LIST NATIVE_COMMAND "${WLINK_FLASH_ARGS}")
+
+if(WLINK)
+    add_custom_target(
+        flash_wlink
+        COMMAND
+            "${WLINK}" --chip "${WLINK_CHIP}" flash
+            ${WLINK_FLASH_ARGS_LIST}
+            "${FIRMWARE_BIN}"
+        DEPENDS ${FIRMWARE_TARGET}
+        USES_TERMINAL
+        VERBATIM)
+else()
+    message(WARNING "wlink was not found; flash_wlink will not be available")
 endif()
 
 find_program(OPENOCD NAMES wch-openocd openocd)

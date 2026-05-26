@@ -5,7 +5,9 @@ Small CMake firmware template for CH32V003 using:
 - `vendor/ch32fun` as a git submodule
 - `vendor/compile-time-init-build` as a git submodule
 - xPack `riscv-none-elf-gcc`
-- `probe-rs`, ch32fun `minichlink`, or WCH OpenOCD flashing
+- [`probe-rs`](https://github.com/probe-rs/probe-rs),
+  ch32fun [`minichlink`](https://github.com/cnlohr/ch32fun/tree/master/minichlink),
+  [`wlink`](https://github.com/ch32-rs/wlink), or WCH OpenOCD flashing
 
 The example firmware blinks `PD6` through CIB/nexus flow services. Timing is
 driven by a 1 ms SysTick interrupt and a 32-bit millisecond `Instant`, so the
@@ -104,6 +106,8 @@ Flash Storage: 16 kB
 
 ### probe-rs
 
+Project: <https://github.com/probe-rs/probe-rs>
+
 ```sh
 cmake --build --preset default --target flash
 ```
@@ -125,13 +129,25 @@ cmake -S . -B build -G Ninja \
 Tested locally with `probe-rs 0.31.0`; `flash_probe_rs` completed with
 verification in 0.94s.
 
+Quirk observed on this CH32V003/WCH-LinkE setup: `probe-rs download` can write
+and verify the image, but `probe-rs reset --chip CH32V003` left the app
+non-running until a WCH-specific reboot/resume command was sent. The current
+working explanation is that the generic RISC-V reset/session teardown path
+leaves this target's WCH debug block in a bad state. Use `minichlink -b`,
+`flash_wlink`, or the OpenOCD `wlink_reset_resume` flow when the program needs
+to start immediately after flashing. More detail is in
+[`docs/ch32v003-reset-behavior.md`](docs/ch32v003-reset-behavior.md).
+
 ### minichlink
+
+Project: <https://github.com/cnlohr/ch32fun/tree/master/minichlink>
 
 ```sh
 cmake --build --preset default --target flash_minichlink
 ```
 
-The target builds and uses the vendored ch32fun tool:
+The target prefers a `minichlink` executable found on `PATH`. If none is found,
+it builds and uses the vendored ch32fun `minichlink` source:
 
 ```sh
 vendor/ch32fun/minichlink/minichlink \
@@ -139,8 +155,8 @@ vendor/ch32fun/minichlink/minichlink \
 ```
 
 This follows ch32fun's `cv_flash` rule: write the generated binary to the
-`flash` memory section, then reboot out of halt. To use a preinstalled
-`minichlink` instead:
+`flash` memory section, then reboot out of halt. To choose a specific
+`minichlink` executable:
 
 ```sh
 cmake -S . -B build -G Ninja -DMINICHLINK=/usr/local/bin/minichlink
@@ -148,6 +164,45 @@ cmake -S . -B build -G Ninja -DMINICHLINK=/usr/local/bin/minichlink
 
 Tested locally with a WCH-LinkE reporting CH32V307 programmer firmware 2.9 and
 a detected CH32V003 with 16 KiB flash; the image was written successfully.
+
+### wlink
+
+[`wlink`](https://github.com/ch32-rs/wlink) is the ch32-rs WCH-Link command
+line tool. If it is installed on `PATH` or under `$HOME/.cargo/bin`, this target
+flashes the generated binary and lets `wlink` reset/run the chip:
+
+```sh
+cmake --build --preset default --target flash_wlink
+```
+
+The target runs the same shape as:
+
+```sh
+/Users/crosstyan/.cargo/bin/wlink --chip CH32V003 \
+  flash build/ch32v003_cib_blink.bin
+```
+
+Override the executable, chip, or extra flash options if needed:
+
+```sh
+cmake -S . -B build -G Ninja \
+  -DWLINK=/Users/crosstyan/.cargo/bin/wlink \
+  -DWLINK_CHIP=CH32V003 \
+  -DWLINK_FLASH_ARGS="--speed medium"
+```
+
+Useful direct commands:
+
+```sh
+/Users/crosstyan/.cargo/bin/wlink list
+/Users/crosstyan/.cargo/bin/wlink --chip CH32V003 reset run
+```
+
+Tested locally with `wlink 0.1.2` at `/Users/crosstyan/.cargo/bin/wlink`. It
+found the WCH-LinkE in RV mode, connected to WCH-Link firmware 2.9, attached as
+CH32V003, flashed 636 bytes to `0x08000000`, and issued its reset step. Its
+verbose ESIG/read-protection output looked inconsistent on this probe firmware,
+so the command keeps `--chip CH32V003` explicit.
 
 ### OpenOCD
 
@@ -210,10 +265,17 @@ The OpenOCD command shape follows the WCH flow documented by
 
 ## Toolchain
 
-The default compiler prefix is:
+The toolchain file does not hard-code an install path. It uses
+`TOOLCHAIN_PREFIX` when provided; otherwise it searches `PATH` for
+`riscv-none-elf-gcc` and the matching binutils.
 
-```text
-/Users/crosstyan/External/opt/xpack-riscv-none-elf-gcc-15.2.0-1
+Set the prefix in `CMakePresets.json`, `CMakeUserPresets.json`, or on the
+configure command line:
+
+```sh
+cmake -S . -B build -G Ninja \
+  -DTOOLCHAIN_PREFIX=/path/to/xpack-riscv-none-elf-gcc
 ```
 
-Override it with `-DTOOLCHAIN_PREFIX=/path/to/xpack-riscv-none-elf-gcc`.
+The default preset in this checkout sets `TOOLCHAIN_PREFIX` through
+`CMakePresets.json`.
