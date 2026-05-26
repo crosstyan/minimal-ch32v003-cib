@@ -13,3 +13,8 @@
 #define FUNCONF_USE_UARTPRINTF 0
 #define FUNCONF_USE_USBPRINTF 0
 #define FUNCONF_NULL_PRINTF 1
+
+// CMake defines CPLUSPLUS for ch32fun, so startup calls __libc_init_array()
+// before main(). Leave this off unless you intentionally want SystemInit() to
+// run constructor functions again.
+#define FUNCONF_SUPPORT_CONSTRUCTORS 0

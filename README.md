@@ -9,6 +9,18 @@ Small CMake firmware template for CH32V003 using:
 
 The example firmware blinks `PD6` through CIB/nexus flow services.
 
+## C++ Constructors
+
+This template defines `CPLUSPLUS=1` for `ch32fun.c`, which enables ch32fun's
+startup call to `__libc_init_array()` before `main()`. That is the path needed
+for normal C++ static object constructors and vtable-bearing global instances.
+
+ch32fun also has `FUNCONF_SUPPORT_CONSTRUCTORS`; that calls constructor
+functions from `SystemInit()` via `CallConstructors()`. It is useful for C
+projects or deliberate manual constructor timing, but this template leaves it
+off because `SystemInit()` is called from the CIB boot flow and enabling both
+paths would run `.init_array` twice.
+
 ## Checkout
 
 ```sh

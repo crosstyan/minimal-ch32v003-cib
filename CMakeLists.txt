@@ -94,7 +94,7 @@ add_custom_target(ch32fun_linker_script DEPENDS "${CH32FUN_LINKER_SCRIPT}")
 
 add_library(ch32fun STATIC "${CH32FUN_DIR}/ch32fun.c")
 target_link_libraries(ch32fun PUBLIC ch32v003_flags)
-target_compile_definitions(ch32fun PUBLIC CH32V003=1)
+target_compile_definitions(ch32fun PUBLIC CH32V003=1 CPLUSPLUS=1)
 target_include_directories(
     ch32fun
     PUBLIC
