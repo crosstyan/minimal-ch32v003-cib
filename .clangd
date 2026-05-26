@@ -1,0 +1,10 @@
+CompileFlags:
+  Add:
+    - "-Wno-unknown-warning-option"
+    - "-Wno-main"
+    - "--target=riscv32-none-elf"
+  Remove:
+    - "-misa-spec=*"
+    - "-fno-tree-loop-distribute-patterns"
+    - "-Werror"
+    - "-Werror=*"
