@@ -103,7 +103,7 @@ target_include_directories(
         "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
 set(FIRMWARE_TARGET firmware)
-add_executable(${FIRMWARE_TARGET} src/main.cpp)
+add_executable(${FIRMWARE_TARGET} src/main.cpp src/system_tick.cpp)
 set_target_properties(
     ${FIRMWARE_TARGET}
     PROPERTIES

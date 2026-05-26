@@ -7,7 +7,9 @@ Small CMake firmware template for CH32V003 using:
 - xPack `riscv-none-elf-gcc`
 - `probe-rs`, ch32fun `minichlink`, or WCH OpenOCD flashing
 
-The example firmware blinks `PD6` through CIB/nexus flow services.
+The example firmware blinks `PD6` through CIB/nexus flow services. Timing is
+driven by a 1 ms SysTick interrupt and a 32-bit millisecond `Instant`, so the
+main loop does not sit in a blocking delay.
 
 ## C++ Constructors
 
@@ -82,7 +84,7 @@ Current example size:
 
 ```text
 text data bss dec hex
-560  0    4   564 234
+636  0    8   644 284
 ```
 
 ## Flash
