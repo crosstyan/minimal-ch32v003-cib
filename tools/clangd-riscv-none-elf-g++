@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+repo_root="$(cd -- "${script_dir}/.." && pwd -P)"
+
+compiler="${CLANGD_RISCV_CXX:-}"
+if [[ -z "${compiler}" && -f "${repo_root}/build/CMakeCache.txt" ]]; then
+    compiler="$(sed -n 's/^CMAKE_CXX_COMPILER:[^=]*=//p' \
+        "${repo_root}/build/CMakeCache.txt" | tail -n 1)"
+fi
+if [[ -z "${compiler}" ]]; then
+    compiler="$(command -v riscv-none-elf-g++ || true)"
+fi
+if [[ -z "${compiler}" || ! -x "${compiler}" ]]; then
+    echo "clangd-riscv-none-elf-g++: riscv-none-elf-g++ not found" >&2
+    echo "Set CLANGD_RISCV_CXX or configure the CMake build directory first." >&2
+    exit 127
+fi
+
+compiler_bin="$(cd -- "$(dirname -- "${compiler}")" && pwd -P)"
+toolchain_prefix="$(cd -- "${compiler_bin}/.." && pwd -P)"
+
+# clangd asks query-driver compilers to print their include search path. In this
+# project it also adds Clang target flags that riscv-none-elf-g++ rejects, so
+# this shim removes only those flags before delegating to the real GCC driver.
+if [[ -d "${toolchain_prefix}/libexec" ]]; then
+    export DYLD_LIBRARY_PATH="${toolchain_prefix}/libexec${DYLD_LIBRARY_PATH:+:${DYLD_LIBRARY_PATH}}"
+fi
+
+# Keep xPack's GCC frontend lookup explicit. This mirrors the old CMake wrapper
+# without copying cc1/cc1plus into the build tree.
+frontend_args=()
+frontend_dirs=("${toolchain_prefix}"/libexec/gcc/riscv-none-elf/*)
+if [[ "${#frontend_dirs[@]}" -eq 1 && -d "${frontend_dirs[0]}" ]]; then
+    frontend_args=("-B${frontend_dirs[0]}/")
+fi
+
+args=()
+while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+        -target|--target)
+            shift
+            [[ "$#" -gt 0 ]] && shift
+            ;;
+        --target=*)
+            shift
+            ;;
+        *)
+            args+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# GCC reports "Target: riscv-none-elf"; clangd wants a width-qualified triple
+# when parsing query-driver output. The compile target still comes from .clangd.
+exec "${compiler}" "${frontend_args[@]}" "${args[@]}" \
+    2> >(sed 's/^Target: riscv-none-elf$/Target: riscv32-none-elf/' >&2)

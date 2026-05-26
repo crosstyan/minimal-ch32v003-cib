@@ -59,6 +59,29 @@ VS Code is configured to run clangd with:
 `.clangd` keeps clangd on the RISC-V target, removes GCC-only warning flags that
 clang cannot parse, and suppresses the embedded `extern "C" main` diagnostic.
 
+The slightly odd part is `tools/clangd-riscv-none-elf-g++`.  clangd invokes
+the configured compiler as a "query driver" to discover system include paths,
+but it passes Clang-style target options such as `-target riscv32-none-elf`.
+xPack `riscv-none-elf-g++` rejects those options even though clangd itself needs
+the equivalent `--target=riscv32-none-elf` for parsing.  The shim handles only
+that impedance mismatch:
+
+- finds the real compiler from `CLANGD_RISCV_CXX`, then `build/CMakeCache.txt`,
+  then `PATH`
+- strips only `-target <value>`, `--target <value>`, and `--target=<value>` from
+  the query-driver invocation
+- preserves all other compile flags
+- adds xPack's `libexec` directory to `DYLD_LIBRARY_PATH` and passes `-B...` so
+  GCC can find its `cc1plus` frontend
+- rewrites GCC's query-driver banner from `Target: riscv-none-elf` to
+  `Target: riscv32-none-elf`, because clangd expects a width-qualified LLVM
+  triple in that output
+
+This is for editor analysis only.  The actual firmware build still uses the
+compiler path from CMake directly.  The setup is intentionally C++-oriented and
+is verified against `src/main.cpp`; vendored C files may still produce clangd
+noise.
+
 The build emits:
 
 - `build/ch32v003_cib_blink.elf`

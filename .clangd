@@ -1,4 +1,6 @@
 CompileFlags:
+  CompilationDatabase: build
+  Compiler: ../tools/clangd-riscv-none-elf-g++
   Add:
     - "-Wno-unknown-warning-option"
     - "-Wno-main"
