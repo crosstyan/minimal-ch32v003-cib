@@ -153,6 +153,9 @@ add_custom_target(size
     DEPENDS ${FIRMWARE_TARGET}
     VERBATIM)
 
+set(FIRMWARE_ELF "$<TARGET_FILE:${FIRMWARE_TARGET}>")
+set(FIRMWARE_BIN "$<TARGET_FILE_DIR:${FIRMWARE_TARGET}>/${PROJECT_NAME}.bin")
+
 find_program(PROBE_RS probe-rs)
 set(PROBE_RS_CHIP "CH32V003" CACHE STRING "probe-rs chip name")
 set(PROBE_RS_DOWNLOAD_ARGS "--verify" CACHE STRING "Extra probe-rs download arguments")
@@ -160,15 +163,78 @@ separate_arguments(PROBE_RS_DOWNLOAD_ARGS_LIST NATIVE_COMMAND "${PROBE_RS_DOWNLO
 
 if(PROBE_RS)
     add_custom_target(
-        flash
+        flash_probe_rs
         COMMAND
             "${PROBE_RS}" download
             --chip "${PROBE_RS_CHIP}"
             ${PROBE_RS_DOWNLOAD_ARGS_LIST}
-            "$<TARGET_FILE:${FIRMWARE_TARGET}>"
+            "${FIRMWARE_ELF}"
+        DEPENDS ${FIRMWARE_TARGET}
+        USES_TERMINAL
+        VERBATIM)
+    add_custom_target(flash DEPENDS flash_probe_rs)
+else()
+    message(WARNING "probe-rs was not found; the flash target will not be available")
+endif()
+
+find_program(MAKE_EXECUTABLE NAMES gmake make)
+find_program(MINICHLINK_PROGRAM minichlink)
+set(MINICHLINK_SOURCE_DIR "${CH32FUN_SOURCE_DIR}/minichlink")
+set(MINICHLINK_VENDOR_EXECUTABLE "${MINICHLINK_SOURCE_DIR}/minichlink")
+
+if(MAKE_EXECUTABLE AND EXISTS "${MINICHLINK_SOURCE_DIR}/Makefile")
+    add_custom_target(
+        minichlink_tool
+        COMMAND "${MAKE_EXECUTABLE}" -C "${MINICHLINK_SOURCE_DIR}" minichlink
+        BYPRODUCTS "${MINICHLINK_VENDOR_EXECUTABLE}"
+        USES_TERMINAL
+        VERBATIM)
+    set(MINICHLINK_DEFAULT "${MINICHLINK_VENDOR_EXECUTABLE}")
+elseif(MINICHLINK_PROGRAM)
+    set(MINICHLINK_DEFAULT "${MINICHLINK_PROGRAM}")
+endif()
+
+set(MINICHLINK "${MINICHLINK_DEFAULT}" CACHE FILEPATH "minichlink executable")
+set(MINICHLINK_WRITE_SECTION "flash" CACHE STRING "minichlink memory section")
+
+if(MINICHLINK)
+    add_custom_target(
+        flash_minichlink
+        COMMAND
+            "${MINICHLINK}" -w "${FIRMWARE_BIN}" "${MINICHLINK_WRITE_SECTION}" -b
+        DEPENDS ${FIRMWARE_TARGET}
+        USES_TERMINAL
+        VERBATIM)
+    if(MINICHLINK STREQUAL MINICHLINK_VENDOR_EXECUTABLE AND TARGET minichlink_tool)
+        add_dependencies(flash_minichlink minichlink_tool)
+    endif()
+else()
+    message(WARNING "minichlink was not found and cannot be built; flash_minichlink will not be available")
+endif()
+
+find_program(OPENOCD NAMES wch-openocd openocd)
+set(OPENOCD_CONFIG_FILES "target/wch-riscv.cfg" CACHE STRING "Semicolon-separated OpenOCD config files")
+set(OPENOCD_EXTRA_ARGS "" CACHE STRING "Extra OpenOCD arguments")
+separate_arguments(OPENOCD_EXTRA_ARGS_LIST NATIVE_COMMAND "${OPENOCD_EXTRA_ARGS}")
+
+set(OPENOCD_FLASH_ARGS ${OPENOCD_EXTRA_ARGS_LIST})
+foreach(_openocd_config IN LISTS OPENOCD_CONFIG_FILES)
+    list(APPEND OPENOCD_FLASH_ARGS -f "${_openocd_config}")
+endforeach()
+list(APPEND OPENOCD_FLASH_ARGS
+    -c init
+    -c halt
+    -c "program ${FIRMWARE_ELF} verify"
+    -c wlink_reset_resume
+    -c exit)
+
+if(OPENOCD)
+    add_custom_target(
+        flash_openocd
+        COMMAND "${OPENOCD}" ${OPENOCD_FLASH_ARGS}
         DEPENDS ${FIRMWARE_TARGET}
         USES_TERMINAL
         VERBATIM)
 else()
-    message(WARNING "probe-rs was not found; the flash target will not be available")
+    message(WARNING "OpenOCD was not found; flash_openocd will not be available")
 endif()
