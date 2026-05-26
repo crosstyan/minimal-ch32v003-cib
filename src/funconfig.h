@@ -1,18 +1,18 @@
 #pragma once
 
-#define CH32V003 1
+#define CH32V003                  1
 
 #define FUNCONF_SYSTEM_CORE_CLOCK 48000000
-#define FUNCONF_USE_HSI 1
-#define FUNCONF_USE_HSE 0
-#define FUNCONF_USE_PLL 1
-#define FUNCONF_USE_CLK_SEC 1
-#define FUNCONF_SYSTICK_USE_HCLK 1
+#define FUNCONF_USE_HSI           1
+#define FUNCONF_USE_HSE           0
+#define FUNCONF_USE_PLL           1
+#define FUNCONF_USE_CLK_SEC       1
+#define FUNCONF_SYSTICK_USE_HCLK  1
 
-#define FUNCONF_USE_DEBUGPRINTF 0
-#define FUNCONF_USE_UARTPRINTF 0
-#define FUNCONF_USE_USBPRINTF 0
-#define FUNCONF_NULL_PRINTF 1
+#define FUNCONF_USE_DEBUGPRINTF   0
+#define FUNCONF_USE_UARTPRINTF    0
+#define FUNCONF_USE_USBPRINTF     0
+#define FUNCONF_NULL_PRINTF       1
 
 // CMake defines CPLUSPLUS for ch32fun, so startup calls __libc_init_array()
 // before main(). Leave this off unless you intentionally want SystemInit() to
